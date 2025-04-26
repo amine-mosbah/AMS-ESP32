@@ -1,0 +1,60 @@
+/* src/components/Stats.css */
+.stat-card {
+  background-color: var(--card-background);
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+}
+
+.stat-content {
+  display: flex;
+  align-items: center;
+}
+
+.stat-icon {
+  margin-right: 1rem;
+}
+
+.stat-details {
+  flex: 1;
+}
+
+.stat-label {
+  color: var(--text-light);
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.total-icon {
+  color: var(--primary-color);
+}
+
+.present-icon {
+  color: var(--success-color);
+}
+
+.quorum-reached-icon {
+  color: var(--success-color);
+}
+
+.quorum-not-reached-icon {
+  color: var(--danger-color);
+}
+
+.quorum-status {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.quorum-reached {
+  color: var(--success-color);
+}
+
+.quorum-not-reached {
+  color: var(--danger-color);
+}

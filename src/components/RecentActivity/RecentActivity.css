@@ -1,0 +1,51 @@
+/* src/components/RecentActivity.css */
+.recent-activity {
+  background-color: var(--card-background);
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+  height: 100%;
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.activity-item {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.activity-name {
+  font-weight: 500;
+}
+
+.activity-time {
+  font-size: 0.875rem;
+  color: var(--text-light);
+}
+
+.activity-status {
+  font-size: 0.875rem;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+}
+
+.clock-icon {
+  margin-right: 0.25rem;
+}
