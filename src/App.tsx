@@ -4,6 +4,7 @@ import { Clock } from "lucide-react";
 import AttendanceList from "./components/AttendanceList/AttendanceList";
 import Stats from "./components/Stats/Stats";
 import RecentActivity from "./components/RecentActivity/RecentActivity";
+import mqttClient from "./mqtt/mqttClient";
 import "./App.css";
 
 interface Attendee {
@@ -22,88 +23,154 @@ interface StatsData {
   quorumPercentage: number;
 }
 
+// Mock database of members - in a real app this would come from a database
+const membersDatabase = [
+  {
+    id: 1,
+    name: "Sophie Martin",
+    rfidTag: "ABC123",
+    role: "Member",
+  },
+  {
+    id: 2,
+    name: "Thomas Dubois",
+    rfidTag: "DEF456",
+    role: "Board Member",
+  },
+  {
+    id: 3,
+    name: "Julie Leroy",
+    rfidTag: "GHI789",
+    role: "Secretary",
+  },
+  {
+    id: 4,
+    name: "Nicolas Petit",
+    rfidTag: "JKL012",
+    role: "Member",
+  },
+  {
+    id: 5,
+    name: "Emma Bernard",
+    rfidTag: "MNO345",
+    role: "Treasurer",
+  },
+  // Add more members as needed
+];
+
+// Define MQTT topics
+const MQTT_CHECKIN_TOPIC = "assembly/attendance/checkin";
+const MQTT_RESPONSE_TOPIC = "assembly/attendance/response";
+
 function App() {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [stats, setStats] = useState<StatsData>({
-    totalAttendees: 0,
+    totalAttendees: membersDatabase.length,
     presentToday: 0,
     quorumReached: false,
     quorumPercentage: 0,
   });
+  const [mqttConnected, setMqttConnected] = useState(false);
 
-  // Fetch data from backend
-  useEffect(() => {
-    // Replace with actual API call
-    const fetchData = async () => {
-      try {
-        // This would be your actual API endpoint
-        // const response = await fetch('http://localhost:8080/api/attendees');
-        // const data = await response.json();
+  // Calculate quorum percentage
+  const updateStats = (currentAttendees: Attendee[]) => {
+    const presentCount = currentAttendees.length;
+    const totalCount = membersDatabase.length;
+    const percentage = (presentCount / totalCount) * 100;
+    const quorumReached = percentage >= 50; // Assume quorum is 50%
 
-        // Mock data for now
-        const mockData: Attendee[] = [
-          {
-            id: 1,
-            name: "Sophie Martin",
-            rfidTag: "ABC123",
-            timeIn: "2025-04-25T09:15:22",
-            status: "present",
-            role: "Member",
-          },
-          {
-            id: 2,
-            name: "Thomas Dubois",
-            rfidTag: "DEF456",
-            timeIn: "2025-04-25T09:20:45",
-            status: "present",
-            role: "Board Member",
-          },
-          {
-            id: 3,
-            name: "Julie Leroy",
-            rfidTag: "GHI789",
-            timeIn: "2025-04-25T09:25:10",
-            status: "present",
-            role: "Secretary",
-          },
-          {
-            id: 4,
-            name: "Nicolas Petit",
-            rfidTag: "JKL012",
-            timeIn: "2025-04-25T09:32:55",
-            status: "present",
-            role: "Member",
-          },
-          {
-            id: 5,
-            name: "Emma Bernard",
-            rfidTag: "MNO345",
-            timeIn: "2025-04-25T09:36:20",
-            status: "present",
-            role: "Treasurer",
-          },
-        ];
+    setStats({
+      totalAttendees: totalCount,
+      presentToday: presentCount,
+      quorumReached: quorumReached,
+      quorumPercentage: percentage,
+    });
+  };
 
-        setAttendees(mockData);
+  // Process RFID from MQTT message
+  const processRfidCheckIn = (rfidTag: string) => {
+    console.log(`Processing RFID check-in: ${rfidTag}`);
 
-        // Calculate stats
-        setStats({
-          totalAttendees: 50, // Mock total registered members
-          presentToday: mockData.length,
-          quorumReached: mockData.length >= 25, // Mock quorum requirement
-          quorumPercentage: (mockData.length / 50) * 100,
-        });
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      }
+    // Find member in database
+    const member = membersDatabase.find((m) => m.rfidTag === rfidTag);
+
+    if (!member) {
+      console.log(`Unknown RFID tag: ${rfidTag}`);
+      // Send response back to the device
+      sendMqttResponse(false, "Unknown RFID");
+      return;
+    }
+
+    // Check if already checked in
+    const existingAttendee = attendees.find((a) => a.rfidTag === rfidTag);
+    if (existingAttendee) {
+      console.log(`Member already checked in: ${member.name}`);
+      sendMqttResponse(false, "Already checked in");
+      return;
+    }
+
+    // Add to attendees
+    const newAttendee: Attendee = {
+      id: member.id,
+      name: member.name,
+      rfidTag: member.rfidTag,
+      timeIn: new Date().toISOString(),
+      status: "present",
+      role: member.role,
     };
 
-    fetchData();
+    const updatedAttendees = [...attendees, newAttendee];
+    setAttendees(updatedAttendees);
+    updateStats(updatedAttendees);
 
-    // Set up polling to refresh data every 10 seconds
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+    // Send success response
+    sendMqttResponse(true, `Welcome ${member.name}`);
+  };
+
+  // Send response back to the device
+  const sendMqttResponse = (success: boolean, message: string) => {
+    const response = {
+      success: success,
+      message: message,
+      timestamp: new Date().toISOString(),
+    };
+
+    mqttClient.publish(MQTT_RESPONSE_TOPIC, JSON.stringify(response));
+  };
+
+  // Handle incoming MQTT messages
+  const handleMqttMessage = (message: string) => {
+    try {
+      const data = JSON.parse(message);
+      if (data.rfidTag) {
+        processRfidCheckIn(data.rfidTag);
+      }
+    } catch (error) {
+      console.error("Error processing MQTT message:", error);
+    }
+  };
+
+  // Connect to MQTT broker on component mount
+  useEffect(() => {
+    // Connect to MQTT broker
+    mqttClient.connect();
+
+    // Set up connection status callback
+    mqttClient.onConnectionChange(setMqttConnected);
+
+    // Subscribe to check-in topic
+    mqttClient.subscribe(MQTT_CHECKIN_TOPIC, handleMqttMessage);
+
+    // Cleanup on unmount
+    return () => {
+      mqttClient.disconnect();
+    };
   }, []);
+
+  // This effect handles updating stats when attendees change
+  useEffect(() => {
+    updateStats(attendees);
+  }, [attendees]);
 
   return (
     <div className="app">
@@ -125,24 +192,25 @@ function App() {
           </div>
         </div>
       </header>
-
       <main className="container main-content">
+        {!mqttConnected && (
+          <div className="mqtt-status-warning">
+            Connecting to MQTT broker...
+          </div>
+        )}
         <div className="grid">
           {/* Stats Cards */}
           <Stats stats={stats} />
-
           {/* Recent Activity */}
           <div className="recent-activity-container">
             <RecentActivity attendees={attendees.slice(0, 3)} />
           </div>
-
           {/* Attendance List */}
           <div className="attendance-list-container">
             <AttendanceList attendees={attendees} />
           </div>
         </div>
       </main>
-
       <footer className="footer">
         <div className="container footer-content">
           Réseaux d'Entreprises Project - Réseaux Hétérogènes © 2025
