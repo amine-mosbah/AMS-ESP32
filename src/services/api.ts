@@ -24,7 +24,7 @@ export interface CheckInResponse {
   attendance: Attendee | null;
 }
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = "REDACTED";
 
 export const apiService = {
   // Get all attendees for the current assembly

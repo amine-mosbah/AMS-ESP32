@@ -28,25 +28,25 @@ const membersDatabase = [
   {
     id: 1,
     name: "Sophie Martin",
-    rfidTag: "ABC123",
+    rfidTag: "BBBA3040",
     role: "Member",
   },
   {
     id: 2,
     name: "Thomas Dubois",
-    rfidTag: "DEF456",
+    rfidTag: "9992E040",
     role: "Board Member",
   },
   {
     id: 3,
     name: "Julie Leroy",
-    rfidTag: "GHI789",
+    rfidTag: "EF26401D",
     role: "Secretary",
   },
   {
     id: 4,
     name: "Nicolas Petit",
-    rfidTag: "JKL012",
+    rfidTag: "0F9A631E",
     role: "Member",
   },
   {
@@ -59,8 +59,8 @@ const membersDatabase = [
 ];
 
 // Define MQTT topics
-const MQTT_CHECKIN_TOPIC = "assembly/attendance/checkin";
-const MQTT_RESPONSE_TOPIC = "assembly/attendance/response";
+const MQTT_CHECKIN_TOPIC = "rfid/card";
+const MQTT_RESPONSE_TOPIC = "rfid/response";
 
 function App() {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
@@ -141,9 +141,15 @@ function App() {
   // Handle incoming MQTT messages
   const handleMqttMessage = (message: string) => {
     try {
+      // Parse the message from HiveMQ
       const data = JSON.parse(message);
-      if (data.rfidTag) {
-        processRfidCheckIn(data.rfidTag);
+
+      // Extract the RFID tag from the message format shown in the HiveMQ console
+      // Format: {"cardUID":"BBBA3040","deviceId":"ESP32_RFID_Reader","messageId":"312973","timestamp":312973}
+      if (data.cardUID) {
+        processRfidCheckIn(data.cardUID);
+      } else {
+        console.log("Invalid message format: missing cardUID field");
       }
     } catch (error) {
       console.error("Error processing MQTT message:", error);
@@ -203,7 +209,7 @@ function App() {
           <Stats stats={stats} />
           {/* Recent Activity */}
           <div className="recent-activity-container">
-            <RecentActivity attendees={attendees.slice(0, 3)} />
+            <RecentActivity attendees={attendees.slice(-3).reverse()} />
           </div>
           {/* Attendance List */}
           <div className="attendance-list-container">

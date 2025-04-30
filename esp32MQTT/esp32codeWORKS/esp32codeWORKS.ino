@@ -41,6 +41,8 @@ MFRC522 mfrc522{driver};  // The driver is the only parameter needed
 // Status LEDs (optional)
 #define LED_SUCCESS 17
 #define LED_ERROR 16
+#define BUZZER_PIN 4
+
 
 String lastCardUID = "";
 unsigned long lastScanTime = 0;
@@ -56,8 +58,11 @@ void setup() {
 
   pinMode(LED_SUCCESS, OUTPUT);
   pinMode(LED_ERROR, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(LED_SUCCESS, LOW);
   digitalWrite(LED_ERROR, LOW);
+  digitalWrite(BUZZER_PIN, LOW);  // Make sure buzzer is off at startup
+
 
   Wire.begin(21, 22); // I2C (SDA, SCL)
   lcd.init();
@@ -110,6 +115,11 @@ void loop() {
     delay(50);
     return;
   }
+
+
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(200);  // Short beep duration
+  digitalWrite(BUZZER_PIN, LOW);
 
   String cardUID = getCardUID();
 
