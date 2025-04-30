@@ -8,9 +8,15 @@ class MQTTClient {
   private connectionCallback: ((connected: boolean) => void) | null = null;
 
   connect(
-    brokerUrl: string = "96e028affe4149618c56d875477fe9d8.s1.eu.hivemq.cloud:8883"
+    brokerUrl: string = "0dcf768ae0b747cf8b6d18fda0062323.s1.eu.hivemq.cloud:8883"
   ) {
-    this.client = mqtt.connect(brokerUrl);
+    this.client = mqtt.connect(brokerUrl, {
+      clientId: "mqttjs_" + Math.random().toString(16).substr(2, 8),
+      username: "esp32rfid",
+      password: "Hama12345",
+      protocolVersion: 5,
+      clean: true,
+    });
 
     this.client.on("connect", () => {
       console.log("Connected to MQTT broker");

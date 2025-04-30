@@ -24,7 +24,7 @@ export interface CheckInResponse {
   attendance: Attendee | null;
 }
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = "0dcf768ae0b747cf8b6d18fda0062323.s1.eu.hivemq.cloud:8883";
 
 export const apiService = {
   // Get all attendees for the current assembly
