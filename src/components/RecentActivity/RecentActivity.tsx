@@ -1,15 +1,7 @@
 import React from "react";
 import { Clock } from "lucide-react";
 import "./RecentActivity.css";
-
-interface Attendee {
-  id: number;
-  name: string;
-  rfidTag: string;
-  timeIn: string;
-  status: string;
-  role: string;
-}
+import { Attendee } from "../../types/Attendee";
 
 interface RecentActivityProps {
   attendees: Attendee[];

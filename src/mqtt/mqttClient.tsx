@@ -1,89 +1,32 @@
-// src/mqtt/mqttClient.ts
-import mqtt from "mqtt";
+var mqtt = require("mqtt");
 
-class MQTTClient {
-  private client: mqtt.MqttClient | null = null;
-  private subscribeCallbacks: Map<string, ((message: string) => void)[]> =
-    new Map();
-  private connectionCallback: ((connected: boolean) => void) | null = null;
+var options = {
+  host: "0dcf768ae0b747cf8b6d18fda0062323.s1.eu.hivemq.cloud",
+  port: 8883,
+  protocol: "mqtts",
+  username: "esp32rfid",
+  password: "Hama12345",
+};
 
-  connect(
-    brokerUrl: string = "0dcf768ae0b747cf8b6d18fda0062323.s1.eu.hivemq.cloud:8883"
-  ) {
-    this.client = mqtt.connect(brokerUrl, {
-      clientId: "mqttjs_" + Math.random().toString(16).substr(2, 8),
-      username: "esp32rfid",
-      password: "Hama12345",
-      protocolVersion: 5,
-      clean: true,
-    });
+// initialize the MQTT client
+var client = mqtt.connect(options);
 
-    this.client.on("connect", () => {
-      console.log("Connected to MQTT broker");
-      if (this.connectionCallback) {
-        this.connectionCallback(true);
-      }
-    });
+// setup the callbacks
+client.on("connect", function () {
+  console.log("Connected");
+});
 
-    this.client.on("error", (err) => {
-      console.error("MQTT connection error:", err);
-      if (this.connectionCallback) {
-        this.connectionCallback(false);
-      }
-    });
+client.on("error", function (error: any) {
+  console.log(error);
+});
 
-    this.client.on("message", (topic, message) => {
-      const messageStr = message.toString();
-      console.log(`Received message on ${topic}: ${messageStr}`);
+client.on("message", function (topic: any, message: { toString: () => any }) {
+  // called each time a message is received
+  console.log("Received message:", topic, message.toString());
+});
 
-      const callbacks = this.subscribeCallbacks.get(topic) || [];
-      callbacks.forEach((callback) => callback(messageStr));
-    });
-  }
+// subscribe to topic 'my/test/topic'
+client.subscribe("my/test/topic");
 
-  disconnect() {
-    if (this.client) {
-      this.client.end();
-      this.client = null;
-    }
-  }
-
-  subscribe(topic: string, callback: (message: string) => void) {
-    if (!this.client) {
-      console.error("MQTT client not connected");
-      return;
-    }
-
-    this.client.subscribe(topic, (err) => {
-      if (err) {
-        console.error(`Error subscribing to ${topic}:`, err);
-        return;
-      }
-      console.log(`Subscribed to ${topic}`);
-    });
-
-    // Add callback to the topic
-    if (!this.subscribeCallbacks.has(topic)) {
-      this.subscribeCallbacks.set(topic, []);
-    }
-    this.subscribeCallbacks.get(topic)?.push(callback);
-  }
-
-  publish(topic: string, message: string) {
-    if (!this.client) {
-      console.error("MQTT client not connected");
-      return;
-    }
-
-    this.client.publish(topic, message);
-    console.log(`Published to ${topic}: ${message}`);
-  }
-
-  onConnectionChange(callback: (connected: boolean) => void) {
-    this.connectionCallback = callback;
-  }
-}
-
-// Singleton instance
-export const mqttClient = new MQTTClient();
-export default mqttClient;
+// publish message 'Hello' to topic 'my/test/topic'
+client.publish("my/test/topic", "Hello");

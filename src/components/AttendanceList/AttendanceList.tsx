@@ -1,14 +1,6 @@
 import React from "react";
 import "./AttendanceList.css";
-
-interface Attendee {
-  id: number;
-  name: string;
-  rfidTag: string;
-  timeIn: string;
-  status: string;
-  role: string;
-}
+import { Attendee } from "../../types/Attendee";
 
 interface AttendanceListProps {
   attendees: Attendee[];
