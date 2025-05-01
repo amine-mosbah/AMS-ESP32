@@ -6,7 +6,7 @@ interface RecentActivityProps {
   attendees: Attendee[];
 }
 
-function RecentActivity({ attendees }: RecentActivityProps) {
+export default function RecentActivity({ attendees }: RecentActivityProps) {
   return (
     <div className="recent-activity">
       <h2 className="section-title">Recent Check-ins</h2>
@@ -29,5 +29,3 @@ function RecentActivity({ attendees }: RecentActivityProps) {
     </div>
   );
 }
-
-export default RecentActivity;
