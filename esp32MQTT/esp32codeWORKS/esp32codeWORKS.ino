@@ -117,9 +117,19 @@ void loop() {
   }
 
 
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(200);  // Short beep duration
-  digitalWrite(BUZZER_PIN, LOW);
+      digitalWrite(BUZZER_PIN, HIGH);
+      delay(100);
+      digitalWrite(BUZZER_PIN, LOW);
+      delay(100);
+      digitalWrite(BUZZER_PIN, HIGH);
+      delay(100);
+      digitalWrite(BUZZER_PIN, LOW);
+
+  // tone(BUZZER_PIN, 1000, 100);
+  // delay(50);
+  // tone(BUZZER_PIN, 1000, 100);
+
+
 
   String cardUID = getCardUID();
 
