@@ -1,17 +1,12 @@
-import React from "react";
 import { Users, ClipboardCheck, Percent } from "lucide-react";
 import "./Stats.css";
+import { StatsData } from "../../types/Attendee";
 
 interface StatsProps {
-  stats: {
-    totalAttendees: number;
-    presentToday: number;
-    quorumReached: boolean;
-    quorumPercentage: number;
-  };
+  stats: StatsData;
 }
 
-function Stats({ stats }: StatsProps) {
+export default function Stats({ stats }: StatsProps) {
   return (
     <>
       <div className="stat-card">
@@ -64,5 +59,3 @@ function Stats({ stats }: StatsProps) {
     </>
   );
 }
-
-export default Stats;

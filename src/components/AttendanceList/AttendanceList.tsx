@@ -1,4 +1,3 @@
-import React from "react";
 import "./AttendanceList.css";
 import { Attendee } from "../../types/Attendee";
 
@@ -6,7 +5,7 @@ interface AttendanceListProps {
   attendees: Attendee[];
 }
 
-function AttendanceList({ attendees }: AttendanceListProps) {
+export default function AttendanceList({ attendees }: AttendanceListProps) {
   return (
     <div className="attendance-list">
       <h2 className="section-title">Attendance List</h2>
@@ -39,5 +38,3 @@ function AttendanceList({ attendees }: AttendanceListProps) {
     </div>
   );
 }
-
-export default AttendanceList;
