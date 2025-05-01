@@ -8,10 +8,11 @@
 #include <MFRC522DriverPinSimple.h>
 #include <MFRC522Debug.h>
 #include <ArduinoJson.h>
+#include <map>  // Add this line for std::map support
 
 // WiFi Credentials
-const char* ssid = "ReImagineLab";
-const char* password = "Relead@2021";
+const char* ssid = "Hamaa";
+const char* password = "hama12345";
 
 // MQTT Broker settings
 const char* mqtt_server = "0dcf768ae0b747cf8b6d18fda0062323.s1.eu.hivemq.cloud";
@@ -22,7 +23,6 @@ const char* mqtt_password = "Hama12345";
 
 // MQTT Topics
 const char* mqtt_topic_publish = "rfid/card";
-const char* mqtt_topic_response = "rfid/response";
 
 // LCD settings (address, cols, rows)
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -37,21 +37,34 @@ MFRC522DriverPinSimple ss_pin(5); // RFID SS -> GPIO5
 MFRC522DriverSPI driver{ss_pin};  // The SS pin is part of the driver
 MFRC522 mfrc522{driver};  // The driver is the only parameter needed
 
-
 // Status LEDs (optional)
 #define LED_SUCCESS 17
 #define LED_ERROR 16
 #define BUZZER_PIN 4
 
+// Known RFID cards mapping (same as in app.tsx)
+struct CardOwner {
+  const char* firstName;
+  const char* role;
+};
+
+// Use a simple array of structs instead of std::map
+const int KNOWN_CARDS_COUNT = 4;
+struct KnownCard {
+  const char* uid;
+  CardOwner owner;
+};
+
+const KnownCard knownCards[KNOWN_CARDS_COUNT] = {
+  {"BBBA3040", {"Mohamed Amine", "President"}},
+  {"98923040", {"Ahmed Aziz", "Project Manager"}},
+  {"0F9A631E", {"Sedki", "Senior Member"}},
+  {"EF26401D", {"Rayen", "Senior Member"}}
+};
 
 String lastCardUID = "";
 unsigned long lastScanTime = 0;
 const unsigned long SCAN_COOLDOWN = 3000;
-
-String lastMessageId = "";
-bool waitingForResponse = false;
-unsigned long responseTimeout = 0;
-const unsigned long RESPONSE_TIMEOUT = 5000;
 
 void setup() {
   Serial.begin(115200);
@@ -61,8 +74,7 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(LED_SUCCESS, LOW);
   digitalWrite(LED_ERROR, LOW);
-  digitalWrite(BUZZER_PIN, LOW);  // Make sure buzzer is off at startup
-
+  digitalWrite(BUZZER_PIN, LOW);
 
   Wire.begin(21, 22); // I2C (SDA, SCL)
   lcd.init();
@@ -71,23 +83,20 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("Initializing...");
 
-    SPI.begin(); // SPI must be started before RFID
-  // Add a reset of the RFID module using the RST pin
+  SPI.begin();
   pinMode(RST_PIN, OUTPUT);
-  digitalWrite(RST_PIN, LOW);   // Reset the RFID module
+  digitalWrite(RST_PIN, LOW);
   delay(50);
-  digitalWrite(RST_PIN, HIGH);  // Exit reset mode
+  digitalWrite(RST_PIN, HIGH);
   delay(50);
   
-  mfrc522.PCD_Init();  // Initialize the RFID reader
+  mfrc522.PCD_Init();
   MFRC522Debug::PCD_DumpVersionToSerial(mfrc522, Serial);
   
-  // Set insecure connection for testing (remove in production)
   espClient.setInsecure();
 
   connectToWiFi();
   mqttClient.setServer(mqtt_server, mqtt_port);
-  mqttClient.setCallback(mqttCallback);
 
   displayReadyState();
 }
@@ -98,38 +107,19 @@ void loop() {
   }
   mqttClient.loop();
 
-  if (waitingForResponse && millis() > responseTimeout) {
-    waitingForResponse = false;
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Timeout");
-    lcd.setCursor(0, 1);
-    lcd.print("No response");
-    delay(2000);
-    displayReadyState();
-  }
-
-  if (waitingForResponse) return;
-
   if (!mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial()) {
     delay(50);
     return;
   }
 
-
-      digitalWrite(BUZZER_PIN, HIGH);
-      delay(100);
-      digitalWrite(BUZZER_PIN, LOW);
-      delay(100);
-      digitalWrite(BUZZER_PIN, HIGH);
-      delay(100);
-      digitalWrite(BUZZER_PIN, LOW);
-
-  // tone(BUZZER_PIN, 1000, 100);
-  // delay(50);
-  // tone(BUZZER_PIN, 1000, 100);
-
-
+  // Buzzer feedback
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
+  delay(100);
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(100);
+  digitalWrite(BUZZER_PIN, LOW);
 
   String cardUID = getCardUID();
 
@@ -152,14 +142,36 @@ void loop() {
   Serial.print("Card UID: ");
   Serial.println(cardUID);
 
+  // Check if card is known and display name
+  bool cardKnown = false;
+  CardOwner owner = {"Unknown", ""};
+  
+  for (int i = 0; i < KNOWN_CARDS_COUNT; i++) {
+    if (cardUID.equals(knownCards[i].uid)) {
+      owner = knownCards[i].owner;
+      cardKnown = true;
+      break;
+    }
+  }
+
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("SCANNING:");
+  lcd.print(owner.firstName);
   lcd.setCursor(0, 1);
-  lcd.print(cardUID);
+  lcd.print(owner.role);
+  
+  if (cardKnown) {
+    digitalWrite(LED_SUCCESS, HIGH);
+  } else {
+    digitalWrite(LED_ERROR, HIGH);
+  }
 
   publishCardUID(cardUID);
+  delay(1000); // Show the name for 1 second
+  digitalWrite(LED_SUCCESS, LOW);
+  digitalWrite(LED_ERROR, LOW);
   mfrc522.PICC_HaltA();
+  displayReadyState();
 }
 
 String getCardUID() {
@@ -217,17 +229,8 @@ void reconnectMQTT() {
   while (!mqttClient.connected() && attempts < 5) {
     Serial.print("Attempt MQTT...");
     
-    // Add debug output for connection attempt
-    Serial.print("Connecting to: ");
-    Serial.print(mqtt_server);
-    Serial.print(":");
-    Serial.print(mqtt_port);
-    Serial.print(" with ID: ");
-    Serial.println(mqtt_client_id);
-    
     if (mqttClient.connect(mqtt_client_id, mqtt_username, mqtt_password)) {
       Serial.println(" connected");
-      mqttClient.subscribe(mqtt_topic_response);
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("MQTT Connected");
@@ -237,58 +240,9 @@ void reconnectMQTT() {
       Serial.print(mqttClient.state());
       Serial.println(", retry...");
       
-      // Show more detailed error information
-      switch(mqttClient.state()) {
-        case -4: 
-          Serial.println("Connection timeout");
-          lcd.setCursor(0, 1);
-          lcd.print("Timeout");
-          break;
-        case -3: 
-          Serial.println("Connection lost");
-          lcd.setCursor(0, 1);
-          lcd.print("Connection lost");
-          break;
-        case -2: 
-          Serial.println("Connection failed");
-          lcd.setCursor(0, 1);
-          lcd.print("Conn failed");
-          break;
-        case -1: 
-          Serial.println("Disconnected");
-          lcd.setCursor(0, 1);
-          lcd.print("Disconnected");
-          break;
-        case 1: 
-          Serial.println("Bad protocol");
-          lcd.setCursor(0, 1);
-          lcd.print("Bad protocol");
-          break;
-        case 2: 
-          Serial.println("Bad client ID");
-          lcd.setCursor(0, 1);
-          lcd.print("Bad client ID");
-          break;
-        case 3: 
-          Serial.println("Server unavailable");
-          lcd.setCursor(0, 1); 
-          lcd.print("Server unavail");
-          break;
-        case 4: 
-          Serial.println("Bad credentials");
-          lcd.setCursor(0, 1);
-          lcd.print("Bad credentials");
-          break;
-        case 5: 
-          Serial.println("Not authorized");
-          lcd.setCursor(0, 1);
-          lcd.print("Not authorized");
-          break;
-        default:
-          lcd.setCursor(0, 1);
-          lcd.print("Failed: ");
-          lcd.print(mqttClient.state());
-      }
+      lcd.setCursor(0, 1);
+      lcd.print("Failed: ");
+      lcd.print(mqttClient.state());
       
       delay(2000);
       attempts++;
@@ -305,62 +259,10 @@ void reconnectMQTT() {
   }
 }
 
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("]: ");
-
-  String message;
-  for (unsigned int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
-  Serial.println(message);
-
-  if (String(topic) == mqtt_topic_response) {
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, message);
-
-    if (!error) {
-      String msgId = doc["messageId"].as<String>();
-
-      if (msgId == lastMessageId) {
-        waitingForResponse = false;
-
-        bool success = doc["success"];
-        String responseMessage = doc["message"].as<String>();
-
-        if (success) {
-          digitalWrite(LED_SUCCESS, HIGH);
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print("ACCEPTED");
-          lcd.setCursor(0, 1);
-          lcd.print(responseMessage);
-          delay(2000);
-          digitalWrite(LED_SUCCESS, LOW);
-        } else {
-          digitalWrite(LED_ERROR, HIGH);
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print("REFUSED");
-          lcd.setCursor(0, 1);
-          lcd.print(responseMessage);
-          delay(2000);
-          digitalWrite(LED_ERROR, LOW);
-        }
-        displayReadyState();
-      }
-    }
-  }
-}
-
 void publishCardUID(String cardUID) {
-  lastMessageId = String(millis());
-
   StaticJsonDocument<256> doc;
   doc["cardUID"] = cardUID;
   doc["deviceId"] = mqtt_client_id;
-  doc["messageId"] = lastMessageId;
   doc["timestamp"] = millis();
 
   String payload;
@@ -370,29 +272,11 @@ void publishCardUID(String cardUID) {
   Serial.println(payload);
 
   if (mqttClient.connected()) {
-    if (mqttClient.publish(mqtt_topic_publish, payload.c_str())) {
-      Serial.println("Publish success");
-      waitingForResponse = true;
-      responseTimeout = millis() + RESPONSE_TIMEOUT;
-
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Verifying...");
-    } else {
+    if (!mqttClient.publish(mqtt_topic_publish, payload.c_str())) {
       Serial.println("Publish failed");
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("ERROR: Publish");
-      delay(2000);
-      displayReadyState();
     }
   } else {
     Serial.println("MQTT not connected");
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("MQTT Disconnect");
-    delay(2000);
-    displayReadyState();
   }
 }
 
